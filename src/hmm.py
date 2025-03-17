@@ -3,7 +3,7 @@ import numpy as np
 from src.lab import read_chord_file
 from hmmlearn import hmm
 import os
-from src.consts import FULL_CHORDS, DATA_DIR
+from src.consts import FULL_CHORDS, DATA_DIR, COL_NAMES_NOTES
 
 
 def compute_transition_matrix(chord_transitions: pd.DataFrame) -> pd.DataFrame:
@@ -154,32 +154,98 @@ def filter_and_normalize_initial_probabilities(
 
 
 def build_gaussian_hmm(
-    initial_state_prob, transition_matrix, mu_array, states_cov_matrices
-):
-    # continuous emission model
+    initial_state_prob: np.ndarray,
+    transition_matrix: pd.DataFrame,
+    mu_array: np.ndarray,
+    states_cov_matrices: np.ndarray,
+    epsilon: float = 1e-6,
+) -> hmm.GaussianHMM:
+    """
+    Builds a Gaussian HMM with corrected covariance matrices.
+
+    Args:
+        initial_state_prob (np.ndarray): Initial state probability vector.
+        transition_matrix (pd.DataFrame): Transition probability matrix.
+        mu_array (np.ndarray): Mean vectors for each state.
+        states_cov_matrices (np.ndarray): Covariance matrices for each state.
+        epsilon (float): Small regularization factor for covariance matrices.
+
+    Returns:
+        hmm.GaussianHMM: The trained Gaussian Hidden Markov Model.
+    """
+    # Ensure all covariance matrices are valid
+    for i in range(states_cov_matrices.shape[0]):
+        cov_matrix = states_cov_matrices[i]
+        # Ensure matrix is symmetric
+        cov_matrix = (cov_matrix + cov_matrix.T) / 2
+        # Regularize if non-positive-definite
+        try:
+            np.linalg.cholesky(cov_matrix)  # Check if positive definite
+        except np.linalg.LinAlgError:
+            cov_matrix += epsilon * np.eye(cov_matrix.shape[0])  # Regularization
+        states_cov_matrices[i] = cov_matrix
+
+    # Continuous emission model
     h_markov_model = hmm.GaussianHMM(
         n_components=transition_matrix.shape[0], covariance_type="full"
     )
 
-    # initial state probability
+    # Assign HMM parameters
     h_markov_model.startprob_ = initial_state_prob
-    # transition matrix probability
     h_markov_model.transmat_ = transition_matrix.values
-
-    # part of continuous emission probability - multidimensional gaussian
-    # 12 dimensional mean vector
     h_markov_model.means_ = mu_array
-    # array of covariance of shape [n_states, n_features, n_features]
     h_markov_model.covars_ = states_cov_matrices
+
     return h_markov_model
 
 
-def get_mu_sigma_from_chroma(chromagram):
-    mu_array = chromagram.groupby("chord").apply(__get_mu_array)
+def compute_mean_note_vector(chromagram: pd.DataFrame) -> pd.DataFrame:
+    """
+    Computes the mean chroma vector for each chord.
 
+    Args:
+        chromagram (pd.DataFrame): DataFrame containing chroma features and chord labels.
+
+    Returns:
+        pd.DataFrame: A DataFrame where each row represents a chord and columns contain the mean chroma values.
+    """
+    return chromagram.groupby("chord")[COL_NAMES_NOTES].mean()
+
+
+def compute_covariance_matrices(chromagram: pd.DataFrame) -> np.ndarray:
+    """
+    Computes the covariance matrix for each chord's chroma features.
+
+    Args:
+        chromagram (pd.DataFrame): DataFrame containing chroma features and chord labels.
+
+    Returns:
+        np.ndarray: An array of covariance matrices, one for each unique chord.
+    """
     states_cov_matrices = []
-    for name, group in chromagram.groupby("chord"):  # alphabetic order
+    for _, group in chromagram.groupby("chord"):  # alphabetic order
         states_cov_matrices.append(group[COL_NAMES_NOTES].cov().values)
-    states_cov_matrices = np.array(states_cov_matrices)
+    return np.array(states_cov_matrices)
 
-    return [mu_array, states_cov_matrices]
+
+def extract_mean_and_covariance(
+    chromagram: pd.DataFrame,
+) -> tuple[pd.DataFrame, np.ndarray]:
+    """
+    Extracts mean chroma vectors and covariance matrices for each chord.
+
+    Args:
+        chromagram (pd.DataFrame): DataFrame containing chroma features and chord labels.
+
+    Returns:
+        tuple: A tuple containing:
+            - A DataFrame of mean chroma vectors per chord.
+            - An array of covariance matrices per chord.
+    """
+    mean_vectors = compute_mean_note_vector(chromagram)
+    covariance_matrices = compute_covariance_matrices(chromagram)
+    return mean_vectors, covariance_matrices
+
+
+def get_hmm_predictions(chord_ix_predictions, ix_2_chord):
+    return np.array([ix_2_chord[chord_ix] for chord_ix in chord_ix_predictions])
