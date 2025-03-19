@@ -19,6 +19,11 @@ AUDIO_SUFFIX = ".mp3"
 
 
 def get_song_chromagram(song_name: str) -> pd.DataFrame:
+    """
+    get the chromagram of a song
+    the chromagram is a matrix of size 12xT, where T is the number of frames in the song
+
+    """
     song_path = f"{DEST_FOLDER}/{song_name}"
     lab_file_path = f"{song_path}.lab"
     audio_file_path = f"{song_path}{AUDIO_SUFFIX}"
