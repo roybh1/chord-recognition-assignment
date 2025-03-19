@@ -19,7 +19,7 @@ from src.hmm import (
     get_hmm_predictions,
 )
 
-DEST_FOLDER = "lab_and_audio_files"
+DEST_FOLDER = "lab_and_audio_files_small"
 AUDIO_SUFFIX = ".mp3"
 
 

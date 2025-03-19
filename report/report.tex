@@ -2,6 +2,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{hyperref}
+\usepackage{listings}
 
 \title{Chord Estimation from Audio using Hidden Markov Models}
 
@@ -76,6 +77,13 @@ Finally, we optimize the model parameters using the Expectation-Maximization (EM
 \alpha_t(i) = \left[\sum_{j=1}^{N}\alpha_{t-1}(j)a_{ji}\right] b_i(o_t)
 \end{equation}
 These steps collectively refine the HMM to achieve accurate chord recognition.
+
+\subsection{Input data manipulation}
+In our experiments, we investigated the impact of removing percussive sounds from the audio signal. To accomplish this, we utilized the Librosa library, specifically applying the Harmonic-Percussive Source Separation (HPSS) algorithm. The HPSS method decomposes the audio signal into harmonic and percussive components through the following process: Short-Time Fourier Transform (STFT) $\rightarrow$ HPSS $\rightarrow$ Inverse Short-Time Fourier Transform (ISTFT). Formally, we applied the HPSS function provided by Librosa as follows:
+\begin{lstlisting}[language=Python]
+y_harmonic, y_percussive = librosa.effects.hpss(y, sr=sr)
+\end{lstlisting}
+where $y$ represents the original audio signal and $sr$ is the sampling rate. After separation, we utilized only the harmonic component to extract chroma features and subsequently train our model. Experimental results demonstrated a slight improvement in chord recognition accuracy using this preprocessing step.
 
 
 
