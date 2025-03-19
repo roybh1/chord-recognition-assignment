@@ -1,6 +1,18 @@
 import librosa
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+import openl3
+
+# https://github.com/tensorflow/models/blob/master/research/audioset/vggish/README.md
+# import models.research.audioset.vggish.vggish_input as vggish_input
+# import models.research.audioset.vggish.vggish_params as vggihs_params
+# import models.research.audioset.vggish.vggish_slim as vggish_slim
+
+import vggish_input
+import vggish_params
+import vggish_slim
+
 from src.consts import (
     DEFAULT_HOP_LENGTH,
     DEFAULT_N_FFT,
@@ -9,10 +21,10 @@ from src.consts import (
     COL_NAMES_NOTES,
 )
 
-# pitch class profile
 
-
-def get_chromagram_from_file(filename: str) -> tuple[np.ndarray, float]:
+def get_chromagram_from_file(
+    filename: str, remove_percussive: bool = False
+) -> tuple[np.ndarray, float, np.ndarray]:
     """
     Extracts chromagram features from an audio file.
 
@@ -23,6 +35,13 @@ def get_chromagram_from_file(filename: str) -> tuple[np.ndarray, float]:
         tuple[np.ndarray, float]: Chromagram and frames per second.
     """
     x, Fs = librosa.load(filename)
+
+    _, beat_frames = librosa.beat.beat_track(y=x, sr=Fs)
+    beat_times = librosa.frames_to_time(beat_frames, sr=Fs)
+
+    if remove_percussive:
+        x, _ = librosa.effects.hpss(x)
+
     chromagram = librosa.feature.chroma_stft(
         y=x,
         sr=Fs,
@@ -35,32 +54,216 @@ def get_chromagram_from_file(filename: str) -> tuple[np.ndarray, float]:
     # Compute frames per second (ensuring it's in seconds, NOT milliseconds)
     frames_per_sec = chromagram.shape[1] / (len(x) / Fs)
 
-    return chromagram, frames_per_sec
+    return chromagram, frames_per_sec, beat_times
 
 
 def convert_chromagram_to_dataframe(
-    chromagram: np.ndarray, frames_per_sec: float
+    chromagram: np.ndarray,
+    frames_per_sec: float,
+    beat_times: np.ndarray,
+    pool_to_beats: bool = False,
 ) -> pd.DataFrame:
     """
     Converts chromagram data into a DataFrame with time-aligned frames.
+    If `pool_to_beats` is True, it aggregates chroma features and predicted chords over beats.
 
     Args:
         chromagram (np.ndarray): Chromagram array.
         frames_per_sec (float): Number of frames per second.
+        beat_times (np.ndarray): Array of detected beat times (seconds).
+        pool_to_beats (bool): Whether to aggregate chroma features and predictions over beats.
 
     Returns:
-        pd.DataFrame: DataFrame containing chroma features and corresponding time windows.
+        pd.DataFrame: DataFrame containing chroma features with time windows.
     """
     frame_duration_sec = 1.0 / frames_per_sec  # Compute frame duration in SECONDS
 
     chromagram_df = pd.DataFrame(chromagram.T, columns=COL_NAMES_NOTES)
 
-    # Ensure 'start' and 'end' times are in SECONDS, NOT MILLISECONDS
-    chromagram_df["start"] = (
-        chromagram_df.index * frame_duration_sec
-    )  # Start time of each frame
-    chromagram_df["end"] = (
-        chromagram_df["start"] + frame_duration_sec
-    )  # End time of each frame
+    # Compute 'start' and 'end' times in SECONDS
+    chromagram_df["start"] = chromagram_df.index * frame_duration_sec
+    chromagram_df["end"] = chromagram_df["start"] + frame_duration_sec
+
+    # Initialize predicted column (it should already exist after HMM predictions)
+    if "predicted" not in chromagram_df:
+        chromagram_df["predicted"] = None  # Placeholder for later predictions
+
+    if pool_to_beats:
+        # Backup original predictions
+        chromagram_df["predicted_original"] = chromagram_df["predicted"].copy()
+
+        # Assign each frame to the closest beat
+        chromagram_df["beat_cluster"] = np.digitize(chromagram_df["start"], beat_times)
+
+        # Aggregate chroma features within each beat cluster
+        beat_pooled_chromagram = (
+            chromagram_df.groupby("beat_cluster")[COL_NAMES_NOTES].mean().reset_index()
+        )
+
+        # Override 'predicted' column with the most common prediction per beat
+        mode_cluster = chromagram_df.groupby("beat_cluster")["predicted"].agg(
+            lambda x: x.value_counts().index[0]
+        )
+        chromagram_df["predicted"] = mode_cluster.loc[
+            chromagram_df["beat_cluster"]
+        ].values
+
+        # Replace start & end times with beat-aligned ones
+        beat_pooled_chromagram["start"] = beat_times[
+            beat_pooled_chromagram["beat_cluster"] - 1
+        ]
+        beat_pooled_chromagram["end"] = np.append(
+            beat_pooled_chromagram["start"][1:].values, chromagram_df["end"].iloc[-1]
+        )
+
+        return chromagram_df
 
     return chromagram_df
+
+
+def detect_beats(audio_path: str, sr=16000):
+    """
+    Detects beat times in an audio file.
+
+    Args:
+        audio_path (str): Path to the audio file.
+        sr (int): Sample rate.
+
+    Returns:
+        np.ndarray: Beat times in seconds.
+    """
+    y, sr = librosa.load(audio_path, sr=sr)
+    _, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+    beat_times = librosa.frames_to_time(beat_frames, sr=sr)
+
+    return beat_times
+
+
+def extract_vggish_embeddings(wav_file: str):
+    """
+    Extracts VGGish embeddings from an audio file.
+
+    Args:
+        wav_file (str): Path to the WAV file.
+
+    Returns:
+        np.ndarray: A matrix of shape (128, n_frames), where each column is a VGGish embedding.
+    """
+    examples = vggish_input.wavfile_to_examples(wav_file)
+
+    with tf.Graph().as_default(), tf.compat.v1.Session() as sess:
+        vggish_slim.define_vggish_slim()
+        vggish_slim.load_vggish_slim_checkpoint(sess, "vggish_model.ckpt")
+
+        features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
+        embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
+
+        [embeddings] = sess.run(
+            [embedding_tensor], feed_dict={features_tensor: examples}
+        )
+
+    return embeddings  # Now transposing VGGish instead of chromagram
+
+
+def extract_vggish_embeddings_with_custom_windows(wav_file: str):
+    """
+    Extracts VGGish embeddings with custom time window sizes.
+
+    Args:
+        wav_file (str): Path to the WAV file.
+        window_size (float): Window size in seconds (default 0.48s).
+        hop_size (float): Hop size in seconds (default 0.24s).
+        sr (int): Sampling rate (default 16kHz).
+
+    Returns:
+        np.ndarray: VGGish embeddings (n_frames, 128) with higher temporal resolution.
+    """
+    # Load audio
+    y, Fs = librosa.load(wav_file, mono=True)
+
+    # Create overlapping windows manually
+    frames = [
+        y[i : i + DEFAULT_N_FFT]
+        for i in range(0, len(y) - DEFAULT_N_FFT, DEFAULT_HOP_LENGTH)
+    ]
+
+    # Convert frames to VGGish examples
+    vggish_examples = np.vstack(
+        [vggish_input.waveform_to_examples(frame, Fs) for frame in frames]
+    )
+
+    # Run through VGGish model
+    with tf.Graph().as_default(), tf.compat.v1.Session() as sess:
+        vggish_slim.define_vggish_slim()
+        vggish_slim.load_vggish_slim_checkpoint(sess, "vggish_model.ckpt")
+
+        features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
+        embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
+
+        [embeddings] = sess.run(
+            [embedding_tensor], feed_dict={features_tensor: vggish_examples}
+        )
+
+    return embeddings
+
+
+def extract_openl3_embeddings(wav_file: str, embedding_size=512):
+    """
+    Extracts OpenL3 embeddings with a customizable window size and hop size.
+
+    Args:
+        wav_file (str): Path to the WAV file.
+        window_size (float): Window size in seconds (default 0.5s).
+        hop_size (float): Hop size in seconds (default 0.1s).
+        sr (int): Sample rate (default 16kHz).
+        embedding_size (int): Size of embeddings (512 or 6144).
+
+    Returns:
+        np.ndarray: OpenL3 embeddings (n_frames, embedding_size).
+    """
+    # Load audio
+    y, Fs = librosa.load(wav_file, mono=True)
+
+    # Extract OpenL3 embeddings
+    embeddings, _ = openl3.get_audio_embedding(
+        y,
+        Fs,
+        content_type="music",
+        embedding_size=embedding_size,
+        hop_size=DEFAULT_HOP_LENGTH / Fs,
+    )
+
+    return embeddings
+
+
+def synchronize_features(
+    chromagram: pd.DataFrame, embeddings: np.ndarray
+) -> pd.DataFrame:
+    """
+    Synchronizes chroma and VGGish embeddings by truncating to the shortest frame length
+    while preserving chromagram column names.
+
+    Args:
+        chromagram (pd.DataFrame): Chroma feature DataFrame (n_frames, 12).
+        embeddings (np.ndarray): VGGish embeddings (n_frames, 128).
+
+    Returns:
+        pd.DataFrame: DataFrame containing combined features with column names preserved.
+    """
+    # Ensure both features have the same time dimension
+    min_frames = min(len(chromagram), embeddings.shape[0])
+
+    # Truncate to the same number of frames
+    chroma_resized = chromagram.iloc[:min_frames].copy()  # Retains DataFrame structure
+    embeddings_resized = embeddings[:min_frames]  # NumPy array
+
+    # Convert embeddings into a DataFrame with column names
+    embedding_columns = [f"VGGish_{i}" for i in range(embeddings.shape[1])]
+    embeddings_df = pd.DataFrame(embeddings_resized, columns=embedding_columns)
+
+    # Concatenate chroma DataFrame with embeddings DataFrame
+    combined_df = pd.concat(
+        [chroma_resized.reset_index(drop=True), embeddings_df], axis=1
+    )
+
+    return combined_df
