@@ -43,12 +43,12 @@ def get_song_features(
     song_name: str,
     remove_percussive: bool = False,
     pool_to_beats: bool = False,
-    add_vggish: bool = False,
+    add_openl3: bool = False,
 ) -> pd.DataFrame:
     chromagram = get_song_chromagram(
         song_name, remove_percussive=remove_percussive, pool_to_beats=pool_to_beats
     )
-    if not add_vggish:
+    if not add_openl3:
         return chromagram
 
     song_path = f"{DEST_FOLDER}/{song_name}"
@@ -58,7 +58,7 @@ def get_song_features(
 
 
 def run_training_pipeline(
-    songs_names: list[str], remove_percussive: bool = False, add_vggish: bool = False
+    songs_names: list[str], remove_percussive: bool = False, add_openl3: bool = False
 ) -> tuple[hmm.GaussianHMM, dict]:
     """
     train hmm over labeled audio files
@@ -66,7 +66,7 @@ def run_training_pipeline(
     chromagram = pd.concat(
         [
             get_song_features(
-                song_name, remove_percussive=remove_percussive, add_vggish=add_vggish
+                song_name, remove_percussive=remove_percussive, add_openl3=add_openl3
             )
             for song_name in songs_names
         ],
@@ -96,13 +96,13 @@ def get_predictions(
     song_name: str,
     remove_percussive: bool = False,
     pool_to_beats: bool = False,
-    add_vggish: bool = False,
+    add_openl3: bool = False,
 ) -> pd.DataFrame:
     chromagram = get_song_features(
         song_name,
         remove_percussive=remove_percussive,
         pool_to_beats=pool_to_beats,
-        add_vggish=add_vggish,
+        add_openl3=add_openl3,
     )
 
     chord_ix_predictions = h_markov_model.predict(chromagram[COL_NAMES_NOTES])
