@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import joblib  # Faster than pickle
+import os
 
 
 def annotate_chord_sequence(
@@ -38,3 +40,31 @@ def annotate_chord_sequence(
     chromagram.loc[chromagram.index[-1], "chord"] = "<END>"
 
     return chromagram
+
+
+def save_embeddings(embeddings: np.ndarray, filename: str):
+    """
+    Saves OpenL3 embeddings to a file.
+
+    Args:
+        embeddings (np.ndarray): OpenL3 embeddings.
+        filename (str): Path to save the file.
+    """
+    joblib.dump(embeddings, filename)
+    print(f"✅ Embeddings saved to {filename}")
+
+
+def load_embeddings(filename: str):
+    """
+    Loads OpenL3 embeddings from a file.
+
+    Args:
+        filename (str): Path to the file.
+
+    Returns:
+        np.ndarray: Loaded OpenL3 embeddings.
+    """
+    if os.path.exists(filename):
+        print(f"✅ Loading cached embeddings from {filename}")
+        return joblib.load(filename)
+    return None  # If the file doesn’t exist, return None
