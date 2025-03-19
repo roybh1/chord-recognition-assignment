@@ -114,6 +114,7 @@ tmp/
 temp/
 
 .venv/
+.final-report/
 .python-version
 lab_and_audio_files/
 sounds/

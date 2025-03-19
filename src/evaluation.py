@@ -4,7 +4,12 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
+    precision_score,
+    recall_score,
 )
+import seaborn as sns
+
+
 
 
 def evaluate_all_songs(results: dict) -> dict:
@@ -50,16 +55,55 @@ def evaluate_all_songs(results: dict) -> dict:
     # Compute overall accuracy and F1-score across all songs
     overall_accuracy = accuracy_score(all_y_true, all_y_pred)
     overall_f1 = f1_score(all_y_true, all_y_pred, average="weighted")
+    overall_precision = precision_score(all_y_true, all_y_pred, average="weighted")
+    overall_recall = recall_score(all_y_true, all_y_pred, average="weighted")
+
 
     # Store overall metrics
-    song_metrics["overall"] = {"accuracy": overall_accuracy, "f1_score": overall_f1}
+    song_metrics["overall"] = {
+        "accuracy": overall_accuracy,
+        "f1_score": overall_f1,
+        "precision": overall_precision,
+        "recall": overall_recall,
+    }
 
     print("\n🔹 **Overall Performance Across All Songs** 🔹")
     print(f"🎶 Overall Accuracy = {overall_accuracy:.4f}")
-    print(f"🎶 Overall F1-score = {overall_f1:.4f}\n")
+    print(f"🎶 Overall F1-score = {overall_f1:.4f}")
+    print(f"🎶 Overall Precision = {overall_precision:.4f}")
+    print(f"🎶 Overall Recall = {overall_recall:.4f}\n")
+
+    # print(f"🎶 Average difference of chord prediction counts = {avg_differente_of_chord_prediction_counts(results):.4f}\n")
 
     return song_metrics
 
+def avg_differente_of_chord_prediction_counts(results: dict) -> float:
+    """
+    Computes the average difference in chord prediction counts between true and predicted chords.
+
+    Args:
+        results (dict): A dictionary where keys are song names and values are chromagram DataFrames
+    
+    Returns:
+        float: The average difference in chord prediction counts between true and predicted chords.
+    """
+    true_counts = []
+    predicted_counts = []
+
+    for song_name, chromagram in results.items():
+        # Remove <START> and <END>
+        filtered_chromagram = chromagram[
+            (chromagram["chord"] != "<START>") & (chromagram["chord"] != "<END>")
+        ]
+
+        true_counts.append(filtered_chromagram["chord"].value_counts())
+        predicted_counts.append(filtered_chromagram["predicted"].value_counts())
+
+    true_counts = pd.concat(true_counts)
+    predicted_counts = pd.concat(predicted_counts)
+
+    return np.mean(np.abs(true_counts - predicted_counts))
+    
 
 def plot_grouped_chord_timeline(chromagram: pd.DataFrame, song_name: str):
     """

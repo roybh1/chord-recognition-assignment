@@ -9,9 +9,9 @@ import openl3
 # import models.research.audioset.vggish.vggish_params as vggihs_params
 # import models.research.audioset.vggish.vggish_slim as vggish_slim
 
-import vggish_input
-import vggish_params
-import vggish_slim
+# import vggish_input
+# import vggish_params
+# import vggish_slim
 
 from src.consts import (
     DEFAULT_HOP_LENGTH,
@@ -139,72 +139,72 @@ def detect_beats(audio_path: str, sr=16000):
     return beat_times
 
 
-def extract_vggish_embeddings(wav_file: str):
-    """
-    Extracts VGGish embeddings from an audio file.
+# def extract_vggish_embeddings(wav_file: str):
+#     """
+#     Extracts VGGish embeddings from an audio file.
 
-    Args:
-        wav_file (str): Path to the WAV file.
+#     Args:
+#         wav_file (str): Path to the WAV file.
 
-    Returns:
-        np.ndarray: A matrix of shape (128, n_frames), where each column is a VGGish embedding.
-    """
-    examples = vggish_input.wavfile_to_examples(wav_file)
+#     Returns:
+#         np.ndarray: A matrix of shape (128, n_frames), where each column is a VGGish embedding.
+#     """
+#     examples = vggish_input.wavfile_to_examples(wav_file)
 
-    with tf.Graph().as_default(), tf.compat.v1.Session() as sess:
-        vggish_slim.define_vggish_slim()
-        vggish_slim.load_vggish_slim_checkpoint(sess, "vggish_model.ckpt")
+#     with tf.Graph().as_default(), tf.compat.v1.Session() as sess:
+#         vggish_slim.define_vggish_slim()
+#         vggish_slim.load_vggish_slim_checkpoint(sess, "vggish_model.ckpt")
 
-        features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
-        embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
+#         features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
+#         embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
 
-        [embeddings] = sess.run(
-            [embedding_tensor], feed_dict={features_tensor: examples}
-        )
+#         [embeddings] = sess.run(
+#             [embedding_tensor], feed_dict={features_tensor: examples}
+#         )
 
-    return embeddings  # Now transposing VGGish instead of chromagram
+#     return embeddings  # Now transposing VGGish instead of chromagram
 
 
-def extract_vggish_embeddings_with_custom_windows(wav_file: str):
-    """
-    Extracts VGGish embeddings with custom time window sizes.
+# def extract_vggish_embeddings_with_custom_windows(wav_file: str):
+#     """
+#     Extracts VGGish embeddings with custom time window sizes.
 
-    Args:
-        wav_file (str): Path to the WAV file.
-        window_size (float): Window size in seconds (default 0.48s).
-        hop_size (float): Hop size in seconds (default 0.24s).
-        sr (int): Sampling rate (default 16kHz).
+#     Args:
+#         wav_file (str): Path to the WAV file.
+#         window_size (float): Window size in seconds (default 0.48s).
+#         hop_size (float): Hop size in seconds (default 0.24s).
+#         sr (int): Sampling rate (default 16kHz).
 
-    Returns:
-        np.ndarray: VGGish embeddings (n_frames, 128) with higher temporal resolution.
-    """
-    # Load audio
-    y, Fs = librosa.load(wav_file, mono=True)
+#     Returns:
+#         np.ndarray: VGGish embeddings (n_frames, 128) with higher temporal resolution.
+#     """
+#     # Load audio
+#     y, Fs = librosa.load(wav_file, mono=True)
 
-    # Create overlapping windows manually
-    frames = [
-        y[i : i + DEFAULT_N_FFT]
-        for i in range(0, len(y) - DEFAULT_N_FFT, DEFAULT_HOP_LENGTH)
-    ]
+#     # Create overlapping windows manually
+#     frames = [
+#         y[i : i + DEFAULT_N_FFT]
+#         for i in range(0, len(y) - DEFAULT_N_FFT, DEFAULT_HOP_LENGTH)
+#     ]
 
-    # Convert frames to VGGish examples
-    vggish_examples = np.vstack(
-        [vggish_input.waveform_to_examples(frame, Fs) for frame in frames]
-    )
+#     # Convert frames to VGGish examples
+#     vggish_examples = np.vstack(
+#         [vggish_input.waveform_to_examples(frame, Fs) for frame in frames]
+#     )
 
-    # Run through VGGish model
-    with tf.Graph().as_default(), tf.compat.v1.Session() as sess:
-        vggish_slim.define_vggish_slim()
-        vggish_slim.load_vggish_slim_checkpoint(sess, "vggish_model.ckpt")
+#     # Run through VGGish model
+#     with tf.Graph().as_default(), tf.compat.v1.Session() as sess:
+#         vggish_slim.define_vggish_slim()
+#         vggish_slim.load_vggish_slim_checkpoint(sess, "vggish_model.ckpt")
 
-        features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
-        embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
+#         features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
+#         embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
 
-        [embeddings] = sess.run(
-            [embedding_tensor], feed_dict={features_tensor: vggish_examples}
-        )
+#         [embeddings] = sess.run(
+#             [embedding_tensor], feed_dict={features_tensor: vggish_examples}
+#         )
 
-    return embeddings
+#     return embeddings
 
 
 def extract_openl3_embeddings(wav_file: str, embedding_size=512):

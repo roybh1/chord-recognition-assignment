@@ -3,6 +3,10 @@ import pandas as pd
 
 
 def _simplify_chords(chords_df: pd.DataFrame) -> list[str]:
+    """
+    Simplify the chords in the dataframe
+    to only contain the chords of the 12 chords in the westerndominant scale
+    """
     chords_processed = chords_df["chord"].str.split(":maj")
     chords_processed = [
         elem[0] for elem in chords_processed
