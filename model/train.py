@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-from sklearn.model_selection import train_test_split
-from .model import AcousticModel
-from dataset import create_dataset
+from torch.utils.data import DataLoader
+from model.acoustic_model import AcousticModel
+from model.dataset import create_dataset
 
 def get_dataset(audio_dir, labels_dir, output_path):
     return create_dataset(audio_dir, labels_dir, output_path)
