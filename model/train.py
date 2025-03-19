@@ -7,6 +7,9 @@ from model.dataset import create_dataset
 def get_dataset(audio_dir, labels_dir, output_path):
     return create_dataset(audio_dir, labels_dir, output_path)
 
+def load_dataset(dataset_path):
+    return torch.load(dataset_path)
+
 def split_dataset(dataset, train_size=0.8, val_size=0.2):
     train_size = int(train_size * len(dataset))
     val_size = len(dataset) - train_size
@@ -81,7 +84,7 @@ def main():
     model = AcousticModel(input_dim=512, hidden_dim=128, num_chords=25)
 
     # Get dataset
-    dataset = get_dataset('lab_and_audio_files_small', 'lab_and_audio_files_small', 'chord_dataset_small.npz')
+    dataset = get_dataset('lab_and_audio_files', 'lab_and_audio_files', 'chord_dataset_full.npz')
 
     # Get data loaders
     train_loader, val_loader = get_data_loaders(dataset)

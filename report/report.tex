@@ -23,6 +23,7 @@ Your Institution\\
 
 \begin{abstract}
 Automatic chord recognition is a significant task within Music Information Retrieval (MIR). Hidden Markov Models (HMMs) using beat-synchronous chroma features have proven effective for chord estimation. This report explores the combination of Neural Networks (NN) and Hidden Markov Models (HMM) and investigates pre-trained audio embeddings, such as VGGish and L3net, to enhance acoustic modeling for chord recognition.
+% TODO: remove the NN part and talk about HMM and OpenL3
 \end{abstract}
 
 \section{Introduction}
@@ -32,6 +33,7 @@ Automatic chord recognition aims to identify and segment chords within audio rec
 Previous studies have shown HMMs combined with Expectation-Maximization (EM) as robust techniques for chord recognition. Notably, studies like \textit{Chord Segmentation and Recognition using EM-Trained HMM} have highlighted the efficacy of such models. Recent advancements leverage deep neural networks and deep embeddings, such as Deep Belief Networks (DBNs), OpenL3 embeddings, and VGGish features, significantly improving acoustic modeling quality.
 
 \section{Architecture}
+% TODO: talk about the OpenL3 features and the architecture of HMM
 Our proposed architecture leverages an NN/HMM hybrid approach:
 \begin{enumerate}
     \item \textbf{Feature Extraction:} Extract beat-synchronous chroma vectors, potentially augmented by pre-trained embeddings (VGGish/OpenL3).
@@ -51,6 +53,7 @@ The forward algorithm computes the probability of the partial observation sequen
 where $a_{ji}$ represents transition probabilities and $b_i(o_t)$ emission probabilities.
 
 \section{Experiments}
+%  TODO: check equations
 We evaluated various configurations of acoustic models:
 \begin{itemize}
     \item Baseline: Classical HMM with chroma features.
@@ -78,21 +81,24 @@ Finally, we optimize the model parameters using the Expectation-Maximization (EM
 \end{equation}
 These steps collectively refine the HMM to achieve accurate chord recognition.
 
-\subsection{Input data manipulation}
+\subsection{Input data improvement}
 In our experiments, we investigated the impact of removing percussive sounds from the audio signal. To accomplish this, we utilized the Librosa library, specifically applying the Harmonic-Percussive Source Separation (HPSS) algorithm. The HPSS method decomposes the audio signal into harmonic and percussive components through the following process: Short-Time Fourier Transform (STFT) $\rightarrow$ HPSS $\rightarrow$ Inverse Short-Time Fourier Transform (ISTFT). Formally, we applied the HPSS function provided by Librosa as follows:
 \begin{lstlisting}[language=Python]
 y_harmonic, y_percussive = librosa.effects.hpss(y, sr=sr)
 \end{lstlisting}
 where $y$ represents the original audio signal and $sr$ is the sampling rate. After separation, we utilized only the harmonic component to extract chroma features and subsequently train our model. Experimental results demonstrated a slight improvement in chord recognition accuracy using this preprocessing step.
 
+\subsection{Inference improvement}
+% TODO: talk about the polling
 
 
 \section{Results}
 Preliminary results indicate:
 \begin{itemize}
     \item Classical HMM with chroma achieved accuracy around 25\% F1-score around 29\%. Precision around 38\% and recall around 25\%.
-    \item Neural network acoustic models significantly improved accuracy, reaching Y\%.
-    \item Incorporation of pre-trained embeddings (OpenL3, VGGish) further increased accuracy to approximately Z\%.
+    \item Data improvement significantly improved accuracy, reaching Y\%.
+    \item Polling
+    \item Incorporation of pre-trained embeddings (OpenL3) further increased accuracy to approximately Z\%.
 \end{itemize}
 Detailed results are available in the provided notebook and will be continuously updated.
 

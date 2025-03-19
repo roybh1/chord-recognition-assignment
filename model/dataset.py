@@ -8,7 +8,7 @@ from src.training import get_song_features
 from src.lab import read_chord_file
 
 
-def extract_features(audio_path, lab_path, sr=44100):
+def extract_features(audio_path, lab_path, sr=22050):
     y, _ = librosa.load(audio_path, sr=sr, mono=True)
 
     # Separate harmonic and percussive components
@@ -111,9 +111,9 @@ def create_dataset(audio_dir, labels_dir, output_path):
     return dataset, chord_to_idx
 
 
-# Usage example:
-audio_dir = 'lab_and_audio_files_small'
-labels_dir = 'lab_and_audio_files_small'
-output_path = 'chord_dataset_small.npz'
+# # Usage example:
+# audio_dir = 'lab_and_audio_files_small'
+# labels_dir = 'lab_and_audio_files_small'
+# output_path = 'chord_dataset_small.npz'
 
-create_dataset(audio_dir, labels_dir, output_path)
+# create_dataset(audio_dir, labels_dir, output_path)
