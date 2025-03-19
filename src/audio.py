@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import openl3
-
+from src.utils import load_embeddings, save_embeddings
 from src.consts import (
     DEFAULT_HOP_LENGTH,
     DEFAULT_N_FFT,
@@ -167,18 +167,22 @@ def extract_openl3_embeddings(wav_file: str, embedding_size=512):
     Returns:
         np.ndarray: OpenL3 embeddings (n_frames, embedding_size).
     """
-    # Load audio
-    y, Fs = librosa.load(wav_file, mono=True)
+    embeddings = load_embeddings(f"{wav_file}_openl3.joblib")
+    if embeddings is None:
+        audio_file_path = f"{wav_file}.wav"
+        # Load audio
+        y, Fs = librosa.load(audio_file_path, mono=True)
 
-    # Extract OpenL3 embeddings
-    embeddings, _ = openl3.get_audio_embedding(
-        y,
-        Fs,
-        content_type="music",
-        embedding_size=embedding_size,
-        hop_size=DEFAULT_HOP_LENGTH / Fs,
-        model=get_openl3_model(),
-    )
+        # Extract OpenL3 embeddings
+        embeddings, _ = openl3.get_audio_embedding(
+            y,
+            Fs,
+            content_type="music",
+            embedding_size=embedding_size,
+            hop_size=DEFAULT_HOP_LENGTH / Fs,
+            model=get_openl3_model(),
+        )
+        save_embeddings(embeddings, f"{wav_file}_openl3.joblib")
 
     return embeddings
 

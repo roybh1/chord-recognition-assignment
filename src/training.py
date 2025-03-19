@@ -7,7 +7,7 @@ from src.audio import (
     extract_openl3_embeddings,
     synchronize_features,
 )
-from src.utils import annotate_chord_sequence
+from src.utils import annotate_chord_sequence, save_embeddings
 from src.consts import COL_NAMES_NOTES
 
 from src.hmm import (
@@ -52,9 +52,10 @@ def get_song_features(
         return chromagram
 
     song_path = f"{DEST_FOLDER}/{song_name}"
-    audio_file_path = f"{song_path}.wav"
-    openl3_embeddings = extract_openl3_embeddings(audio_file_path)
-    return synchronize_features(chromagram, openl3_embeddings)
+    openl3_embeddings = extract_openl3_embeddings(song_path)
+    merged = synchronize_features(chromagram, openl3_embeddings)
+    merged.fillna(0, inplace=True)
+    return merged
 
 
 def run_training_pipeline(
@@ -73,8 +74,17 @@ def run_training_pipeline(
         ignore_index=True,
     )
 
-    mu_array, states_cov_matrices = extract_mean_and_covariance(chromagram)
-    transition_matrix = build_transition_probability_matrix(chromagram)
+    # Select only numerical features for training
+    feature_columns = [col for col in chromagram.columns if col not in ["predicted"]]
+
+    # Ensure all training and prediction use the same features
+    feature_matrix = chromagram[feature_columns]
+    print(
+        f"Training Feature Matrix Shape: {feature_matrix.shape}"
+    )  # Expect (n_frames, n_features)
+
+    mu_array, states_cov_matrices = extract_mean_and_covariance(feature_matrix)
+    transition_matrix = build_transition_probability_matrix(feature_matrix)
     initial_state_probs = filter_and_normalize_initial_probabilities(
         compute_initial_state_probabilities(), transition_matrix
     )
@@ -98,6 +108,21 @@ def get_predictions(
     pool_to_beats: bool = False,
     add_openl3: bool = False,
 ) -> pd.DataFrame:
+    """
+    Generates chord predictions using the trained HMM.
+
+    Args:
+        h_markov_model (hmm.GaussianHMM): Trained HMM model.
+        chord_dict (dict): Mapping of state indices to chord labels.
+        song_name (str): Name of the song to process.
+        remove_percussive (bool): Whether to remove percussive elements.
+        pool_to_beats (bool): Whether to pool features over beats.
+        add_openl3 (bool): Whether to include OpenL3 features.
+
+    Returns:
+        pd.DataFrame: DataFrame with start, end, true chord, and predicted chord.
+    """
+    # Extract all features
     chromagram = get_song_features(
         song_name,
         remove_percussive=remove_percussive,
@@ -105,9 +130,37 @@ def get_predictions(
         add_openl3=add_openl3,
     )
 
-    chord_ix_predictions = h_markov_model.predict(chromagram[COL_NAMES_NOTES])
+    # 🔹 Select only the feature columns (exclude non-feature columns)
+    feature_columns = [
+        col
+        for col in chromagram.columns
+        if col not in ["start", "end", "chord", "predicted"]
+    ]
+
+    # 🔹 Use all features (Chroma + OpenL3)
+    feature_matrix = chromagram[feature_columns]
+
+    print(
+        f"Start Probabilities Shape: {h_markov_model.startprob_.shape}"
+    )  # Expect (n_states,)
+    print(
+        f"Transition Matrix Shape: {h_markov_model.transmat_.shape}"
+    )  # Expect (n_states, n_states)
+    print(
+        f"Feature Matrix Shape (X): {feature_matrix.shape}"
+    )  # Expect (n_samples, n_features)
+    print(
+        f"Mean Vectors Shape (mu_array): {h_markov_model.means_.shape}"
+    )  # Expect (n_states, n_features)
+
+    # 🔹 Predict chord indices
+    chord_ix_predictions = h_markov_model.predict(feature_matrix)
+
+    # 🔹 Convert indices to chord names
     chord_str_predictions = get_hmm_predictions(chord_ix_predictions, chord_dict)
+
+    # 🔹 Store predictions
     chromagram["predicted"] = chord_str_predictions
 
-    # return only the relevant columns: start, end, chord, predicted
+    # Return only the relevant columns
     return chromagram[["start", "end", "chord", "predicted"]]

@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
 from src.lab import read_chord_file
+from scipy.linalg import LinAlgError
 from hmmlearn import hmm
 import os
-from src.consts import FULL_CHORDS, DATA_DIR, COL_NAMES_NOTES
+from src.consts import FULL_CHORDS, DATA_DIR
 
 
 def compute_transition_matrix(chord_transitions: pd.DataFrame) -> pd.DataFrame:
@@ -60,13 +61,34 @@ def build_transition_probability_matrix(chromagram: pd.DataFrame) -> pd.DataFram
     transition_matrix = compute_transition_matrix(chord_transitions)
 
     # Add <END> state (no outgoing transitions)
-    transition_matrix.loc["<END>"] = 0.0
+    # transition_matrix.loc["<END>"] = 0.0
 
     # Add <START> state (no incoming transitions)
     transition_matrix["<START>"] = 0.0
 
     # Ensure <END> always transitions to itself with probability 1
-    transition_matrix.loc["<END>", "<END>"] = 1.0
+    # transition_matrix.loc["<END>", "<END>"] = 1.0
+
+    # 🔍 Detect NaN values in transition matrix
+    if transition_matrix.isna().any().any():
+        print(f"⚠️ WARNING: NaN values found in transition matrix. Fixing them...")
+        print(f"Before Fix:\n{transition_matrix}")
+
+    # Replace NaN rows with uniform probabilities
+    transition_matrix = transition_matrix.fillna(0)
+
+    # 🔍 Fix floating-point issues by explicitly ensuring each row sums to 1
+    transition_matrix = transition_matrix.div(transition_matrix.sum(axis=1), axis=0)
+
+    # 🔍 If floating-point rounding caused small errors, force sum correction
+    transition_matrix = transition_matrix.apply(lambda row: row / row.sum(), axis=1)
+
+    # 🔍 Re-check after fix
+    if transition_matrix.isna().any().any():
+        raise ValueError(
+            "❌ ERROR: NaNs still present in transition matrix after attempted fix!"
+        )
+    print(f"After Fix:\n{transition_matrix}")
 
     return transition_matrix
 
@@ -199,35 +221,88 @@ def build_gaussian_hmm(
     return h_markov_model
 
 
-def compute_mean_note_vector(chromagram: pd.DataFrame) -> pd.DataFrame:
+def compute_mean_vectors(feature_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Computes the mean chroma vector for each chord.
+    Computes the mean feature vector (mu) for each chord.
 
     Args:
-        chromagram (pd.DataFrame): DataFrame containing chroma features and chord labels.
+        feature_df (pd.DataFrame): DataFrame containing features + chord labels.
 
     Returns:
-        pd.DataFrame: A DataFrame where each row represents a chord and columns contain the mean chroma values.
+        pd.DataFrame: Mean feature vector per chord (shape: n_states x n_features).
     """
-    return chromagram.groupby("chord")[COL_NAMES_NOTES].mean()
+    feature_columns = [
+        col
+        for col in feature_df.columns
+        if col not in ["chord", "start", "end", "predicted"]
+    ]
+
+    # Compute mean feature vector per chord
+    mu_array = feature_df.groupby("chord")[feature_columns].mean()
+
+    return mu_array  # Shape: (n_states, n_features)
 
 
-def compute_covariance_matrices(chromagram: pd.DataFrame) -> np.ndarray:
+def compute_covariance_matrices(
+    feature_df: pd.DataFrame, epsilon: float = 1e-3
+) -> np.ndarray:
     """
-    Computes the covariance matrix for each chord's chroma features.
+    Computes covariance matrices for each chord, ensuring they are symmetric and positive-definite.
+    If a matrix contains NaN/Inf values or is singular, it is replaced with a small identity matrix.
 
     Args:
-        chromagram (pd.DataFrame): DataFrame containing chroma features and chord labels.
+        feature_df (pd.DataFrame): DataFrame containing features + chord labels.
+        epsilon (float): Small regularization term.
 
     Returns:
-        np.ndarray: An array of covariance matrices, one for each unique chord.
+        np.ndarray: Covariance matrices (shape: n_states x n_features x n_features).
     """
+    feature_columns = [
+        col
+        for col in feature_df.columns
+        if col not in ["chord", "start", "end", "predicted"]
+    ]
+
     states_cov_matrices = []
-    for _, group in chromagram.groupby("chord"):  # alphabetic order
-        states_cov_matrices.append(group[COL_NAMES_NOTES].cov().values)
+    feature_dim = len(feature_columns)
+
+    chord_labels = sorted(feature_df["chord"].unique())  # Get all unique chord states
+
+    for chord in chord_labels:
+        group = feature_df[feature_df["chord"] == chord]
+
+        if len(group) < 2:
+            # If only one sample, use a small identity matrix
+            cov_matrix = epsilon * np.eye(feature_dim)
+        else:
+            cov_matrix = group[feature_columns].cov().values
+            cov_matrix = (cov_matrix + cov_matrix.T) / 2  # Ensure symmetry
+
+        # Handle NaN, Inf, or singular matrices
+        if (
+            np.isnan(cov_matrix).any()
+            or np.isinf(cov_matrix).any()
+            or np.linalg.matrix_rank(cov_matrix) < feature_dim
+        ):
+            cov_matrix = epsilon * np.eye(feature_dim)
+
+        # Ensure positive definiteness
+        try:
+            np.linalg.cholesky(cov_matrix)
+        except LinAlgError:
+            cov_matrix += epsilon * np.eye(feature_dim)  # Regularization
+
+        states_cov_matrices.append(cov_matrix)
+
+    # Convert to NumPy array
     states_cov_matrices = np.array(states_cov_matrices)
-    states_cov_matrices[0:2] = 0 # turn cov matrices of <START> and <END> to from nan to 0
-    return states_cov_matrices
+
+    # Ensure `<START>` and `<END>` states have stable covariance matrices
+    for i, chord in enumerate(chord_labels):
+        if chord in ["<START>", "<END>"]:
+            states_cov_matrices[i] = epsilon * np.eye(feature_dim)
+
+    return states_cov_matrices  # Shape: (n_states, n_features, n_features)
 
 
 def extract_mean_and_covariance(
@@ -244,7 +319,7 @@ def extract_mean_and_covariance(
             - A DataFrame of mean chroma vectors per chord.
             - An array of covariance matrices per chord.
     """
-    mean_vectors = compute_mean_note_vector(chromagram)
+    mean_vectors = compute_mean_vectors(chromagram)
     covariance_matrices = compute_covariance_matrices(chromagram)
     return mean_vectors, covariance_matrices
 
