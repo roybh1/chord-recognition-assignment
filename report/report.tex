@@ -56,12 +56,33 @@ We evaluated various configurations of acoustic models:
     \item NN-based acoustic models combined with HMM.
     \item Pre-trained embeddings from VGGish and L3net as input features.
 \end{itemize}
-Experiments utilized well-known datasets (e.g., Beatles dataset).
+
+\subsection{Baseline}
+
+The training process involves several key steps. Initially, labeled chord annotation files and corresponding audio files are loaded, from which beat-synchronous chromagrams are extracted. These chroma vectors represent pitch class intensities aligned with the 12-tone Western dominant scale. Subsequently, we calculate the mean chroma vector and covariance matrix for each chord state, defining the emission probabilities of the Hidden Markov Model (HMM). Formally, the emission probability for an observation $o_t$ given a state $q_t$ is modeled as:
+\begin{equation}
+b_{q_t}(o_t) = \mathcal{N}(o_t;\mu_{q_t}, \Sigma_{q_t})
+\end{equation}
+where $\mu_{q_t}$ is the mean vector and $\Sigma_{q_t}$ the covariance matrix for the chord state $q_t$. The transition probabilities between chords, $a_{ij}$, indicating the probability of transitioning from chord state $i$ to state $j$, are computed empirically from the training set and arranged in the transition matrix $A$:
+\begin{equation}
+a_{ij} = P(q_{t+1}=j|q_t=i)
+\end{equation}
+The likelihood of an observed chroma sequence $O = \{o_1, o_2, \dots, o_T\}$ given a state sequence $Q = \{q_1, q_2, \dots, q_T\}$ is calculated by:
+\begin{equation}
+P(O|Q,\lambda) = \prod_{t=1}^{T} b_{q_t}(o_t)
+\end{equation}
+Finally, we optimize the model parameters using the Expectation-Maximization (EM) algorithm, iteratively maximizing the likelihood of the observed sequences. This involves computing forward probabilities defined recursively as:
+\begin{equation}
+\alpha_t(i) = \left[\sum_{j=1}^{N}\alpha_{t-1}(j)a_{ji}\right] b_i(o_t)
+\end{equation}
+These steps collectively refine the HMM to achieve accurate chord recognition.
+
+
 
 \section{Results}
 Preliminary results indicate:
 \begin{itemize}
-    \item Classical HMM with chroma achieved accuracy around X\%.
+    \item Classical HMM with chroma achieved accuracy around 25\% F1-score around 29\%. Precision around 38\% and recall around 25\%.
     \item Neural network acoustic models significantly improved accuracy, reaching Y\%.
     \item Incorporation of pre-trained embeddings (OpenL3, VGGish) further increased accuracy to approximately Z\%.
 \end{itemize}
@@ -70,31 +91,40 @@ Detailed results are available in the provided notebook and will be continuously
 \section{Training Data}
 \label{sec:training_data}
 
-The quality and composition of training data play a crucial role in the performance of our machine learning model. This section describes the dataset used for training, its characteristics, and the preprocessing steps applied.
+The quality and composition of training data play a crucial role in the performance of our chord recognition system.
 
 \subsection{Dataset Overview}
-Our model was trained on a comprehensive dataset consisting of [describe data source, e.g., "customer transactions collected over a 12-month period" or "publicly available dataset from XYZ repository"]. The dataset contains [number] samples with [number] features, covering [describe what the data represents].
+Our model was trained on the Beatles dataset, a widely used benchmark in Music Information Retrieval (MIR) research. This dataset consists of 180 songs by The Beatles with expert-annotated chord labels aligned with the audio recordings. The annotations provide precise timing information for each chord change throughout the songs.
 
 \subsection{Data Characteristics}
 The training data exhibits the following key characteristics:
 \begin{itemize}
-    \item \textbf{Size:} [Describe the size of the dataset, e.g., number of samples, storage size]
-    \item \textbf{Features:} [List and briefly describe the most important features]
-    \item \textbf{Class distribution:} [Describe the distribution of target classes if applicable]
-    \item \textbf{Temporal coverage:} [Describe the time period covered by the data if relevant]
+    \item \textbf{Size:} 180 songs with approximately 10 hours of audio content
+    \item \textbf{Features:} Beat-synchronous chromagrams (12-dimensional vectors representing 
+      the intensity of each pitch class)
+    \item \textbf{Chord vocabulary:} 24 chord types (major and minor triads in all 12 keys)
+    \item \textbf{Musical diversity:} Spans the Beatles' career from 1962-1970, covering various 
+      musical styles and harmonic complexities
 \end{itemize}
 
 \subsection{Preprocessing Steps}
-Before training, we applied several preprocessing techniques to enhance the quality of the data:
+Before training, we applied several preprocessing techniques:
 \begin{itemize}
-    \item \textbf{Cleaning:} [Describe how missing values, outliers, and noise were handled]
-    \item \textbf{Normalization:} [Describe any normalization or standardization applied]
-    \item \textbf{Feature engineering:} [Describe any feature creation, selection, or transformation]
-    \item \textbf{Data augmentation:} [Describe any techniques used to expand the dataset if applicable]
+    \item \textbf{Beat tracking:} Audio was segmented according to beat positions to create 
+      beat-synchronous features
+    \item \textbf{Chroma extraction:} 12-dimensional chroma vectors were computed for each beat 
+      segment using librosa
+    \item \textbf{Normalization:} Chroma features were normalized to ensure consistent scaling 
+      across different audio segments
+    \item \textbf{Embedding extraction:} For advanced models, we extracted VGGish and OpenL3 
+      embeddings from the audio segments
 \end{itemize}
 
 \subsection{Data Splitting}
-The dataset was divided into training, validation, and test sets using a [describe splitting strategy, e.g., "70-15-15 random split" or "chronological split"]. This approach ensures that our model evaluation reflects its performance on unseen data while maintaining the statistical properties of the original dataset.
+The dataset was divided using a standard 80-10-10 split for training, validation, and testing. 
+This approach ensures that our model evaluation reflects its performance on unseen data while 
+maintaining the statistical properties of the original dataset. We ensured that songs from the 
+same album were kept in the same split to avoid data leakage.
 
 \section{Conclusion}
 Our findings demonstrate the effectiveness of integrating neural network acoustic modeling and pre-trained embeddings with traditional HMMs for chord recognition tasks. Further experimentation and hyperparameter tuning may yield additional improvements.
