@@ -225,7 +225,9 @@ def compute_covariance_matrices(chromagram: pd.DataFrame) -> np.ndarray:
     states_cov_matrices = []
     for _, group in chromagram.groupby("chord"):  # alphabetic order
         states_cov_matrices.append(group[COL_NAMES_NOTES].cov().values)
-    return np.array(states_cov_matrices)
+    states_cov_matrices = np.array(states_cov_matrices)
+    states_cov_matrices[0:2] = 0 # turn cov matrices of <START> and <END> to from nan to 0
+    return states_cov_matrices
 
 
 def extract_mean_and_covariance(
