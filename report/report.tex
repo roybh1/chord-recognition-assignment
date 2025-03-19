@@ -22,12 +22,16 @@ Your Institution\\
 \maketitle
 
 \begin{abstract}
-Automatic chord recognition is a significant task within Music Information Retrieval (MIR). Hidden Markov Models (HMMs) using beat-synchronous chroma features have proven effective for chord estimation. This report explores the combination of Neural Networks (NN) and Hidden Markov Models (HMM) and investigates pre-trained audio embeddings, such as VGGish and L3net, to enhance acoustic modeling for chord recognition.
-% TODO: remove the NN part and talk about HMM and OpenL3
+Automatic chord recognition is a significant task within Music Information Retrieval (MIR).
+Hidden Markov Models (HMMs) using beat-synchronous chroma features have proven effective for chord estimation.
+This report explores the use of Hidden Markov Models (HMM) and investigates pre-trained audio embeddings, such as L3-Net, to enhance acoustic modeling for chord recognition.
 \end{abstract}
 
 \section{Introduction}
-Automatic chord recognition aims to identify and segment chords within audio recordings automatically. Since 2008, it has been a task in the Music Information Retrieval Evaluation eXchange (MIREX), achieving notable success. Hidden Markov Models (HMM) coupled with chroma vectors have established themselves as effective methods. This work evaluates extensions to classical HMM methods by integrating neural network-based acoustic models and leveraging pre-trained embeddings.
+Automatic chord recognition aims to identify and segment chords within audio recordings automatically.
+Since 2008, it has been a task in the Music Information Retrieval Evaluation eXchange (MIREX), achieving notable success.
+Hidden Markov Models (HMM) coupled with chroma vectors have established themselves as effective methods.
+This work evaluates extensions to classical HMM methods by integrating neural network-based acoustic models and leveraging pre-trained embeddings model.
 
 \section{Related Works}
 Previous studies have shown HMMs combined with Expectation-Maximization (EM) as robust techniques for chord recognition. Notably, studies like \textit{Chord Segmentation and Recognition using EM-Trained HMM} have highlighted the efficacy of such models. Recent advancements leverage deep neural networks and deep embeddings, such as Deep Belief Networks (DBNs), OpenL3 embeddings, and VGGish features, significantly improving acoustic modeling quality.
@@ -36,8 +40,8 @@ Previous studies have shown HMMs combined with Expectation-Maximization (EM) as 
 % TODO: talk about the OpenL3 features and the architecture of HMM
 Our proposed architecture leverages an NN/HMM hybrid approach:
 \begin{enumerate}
-    \item \textbf{Feature Extraction:} Extract beat-synchronous chroma vectors, potentially augmented by pre-trained embeddings (VGGish/OpenL3).
-    \item \textbf{Acoustic Model:} Neural network-based models trained to map audio embeddings to chord probabilities.
+    \item \textbf{Chroma Extraction:} Extract beat-synchronous chroma vectors using Short-Time Fourier Transform (STFT).
+    \item \textbf{OpenL3 Embedding:} Extract OpenL3 embeddings using L3-Net model
     \item \textbf{Temporal Model:} Hidden Markov Model integrates temporal dependencies between chord progressions.
 \end{enumerate}
 
@@ -57,7 +61,8 @@ where $a_{ji}$ represents transition probabilities and $b_i(o_t)$ emission proba
 We evaluated various configurations of acoustic models:
 \begin{itemize}
     \item Baseline: Classical HMM with chroma features.
-    \item NN-based acoustic models combined with HMM.
+    \item Data improvement: removing percussive sounds from the audio signal.
+    \item Inference improvement: polling (majority vote).
     \item Pre-trained embeddings from VGGish and L3net as input features.
 \end{itemize}
 
@@ -90,13 +95,19 @@ where $y$ represents the original audio signal and $sr$ is the sampling rate. Af
 
 \subsection{Inference improvement}
 % TODO: talk about the polling
+We also explored the impact of incorporating polling into the HMM inference process.
+Polling involves aggregating multiple predictions to enhance the final chord recognition decision.
+we used the same model to predict the chord for each beat in the song, and then we used the majority vote to determine the final chord for that beat.
+
+\subsection{Pre-trained embeddings}
+% TODO: talk about the OpenL3 features and the architecture of HMM
 
 
 \section{Results}
 Preliminary results indicate:
 \begin{itemize}
     \item Classical HMM with chroma achieved accuracy around 25\% F1-score around 29\%. Precision around 38\% and recall around 25\%.
-    \item Data improvement significantly improved accuracy, reaching Y\%.
+    \item Data improvement slightly improved accuracy, reaching 27\% F1-score around 30\%. Precision around 39\% and recall around 26\%.
     \item Polling
     \item Incorporation of pre-trained embeddings (OpenL3) further increased accuracy to approximately Z\%.
 \end{itemize}
@@ -150,6 +161,7 @@ Media and additional results can be accessed here: \url{https://drive.google.com
 
 \bibliographystyle{plain}
 \bibliography{references}
+
 
 \end{document}
 

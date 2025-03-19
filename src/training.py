@@ -19,7 +19,7 @@ from src.hmm import (
     get_hmm_predictions,
 )
 
-DEST_FOLDER = "lab_and_audio_files_small"
+DEST_FOLDER = "lab_and_audio_files"
 AUDIO_SUFFIX = ".mp3"
 
 
@@ -52,7 +52,7 @@ def get_song_features(
         return chromagram
 
     song_path = f"{DEST_FOLDER}/{song_name}"
-    audio_file_path = f"{song_path}.wav"
+    audio_file_path = f"{song_path}.mp3"
     openl3_embeddings = extract_openl3_embeddings(audio_file_path)
     return synchronize_features(chromagram, openl3_embeddings)
 
