@@ -3,16 +3,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import openl3
-
-# https://github.com/tensorflow/models/blob/master/research/audioset/vggish/README.md
-# import models.research.audioset.vggish.vggish_input as vggish_input
-# import models.research.audioset.vggish.vggish_params as vggihs_params
-# import models.research.audioset.vggish.vggish_slim as vggish_slim
-
-# import vggish_input
-# import vggish_params
-# import vggish_slim
-
+from src.utils import load_embeddings, save_embeddings
 from src.consts import (
     DEFAULT_HOP_LENGTH,
     DEFAULT_N_FFT,
@@ -20,6 +11,29 @@ from src.consts import (
     DEFAULT_TUNING,
     COL_NAMES_NOTES,
 )
+
+# Global cache for the OpenL3 model
+MODEL_OPENL3 = None
+
+
+def get_openl3_model():
+    """
+    Loads the OpenL3 model once and reuses it.
+
+    Returns:
+        OpenL3 model instance.
+    """
+    global MODEL_OPENL3
+    if MODEL_OPENL3 is None:
+        print("🔄 Loading OpenL3 model...")
+        MODEL_OPENL3 = openl3.models.load_audio_embedding_model(
+            content_type="music", input_repr="mel256", embedding_size=512
+        )
+        print("✅ OpenL3 model loaded and cached!")
+    return MODEL_OPENL3
+
+
+get_openl3_model()
 
 
 def get_chromagram_from_file(
@@ -139,74 +153,6 @@ def detect_beats(audio_path: str, sr=16000):
     return beat_times
 
 
-# def extract_vggish_embeddings(wav_file: str):
-#     """
-#     Extracts VGGish embeddings from an audio file.
-
-#     Args:
-#         wav_file (str): Path to the WAV file.
-
-#     Returns:
-#         np.ndarray: A matrix of shape (128, n_frames), where each column is a VGGish embedding.
-#     """
-#     examples = vggish_input.wavfile_to_examples(wav_file)
-
-#     with tf.Graph().as_default(), tf.compat.v1.Session() as sess:
-#         vggish_slim.define_vggish_slim()
-#         vggish_slim.load_vggish_slim_checkpoint(sess, "vggish_model.ckpt")
-
-#         features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
-#         embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
-
-#         [embeddings] = sess.run(
-#             [embedding_tensor], feed_dict={features_tensor: examples}
-#         )
-
-#     return embeddings  # Now transposing VGGish instead of chromagram
-
-
-# def extract_vggish_embeddings_with_custom_windows(wav_file: str):
-#     """
-#     Extracts VGGish embeddings with custom time window sizes.
-
-#     Args:
-#         wav_file (str): Path to the WAV file.
-#         window_size (float): Window size in seconds (default 0.48s).
-#         hop_size (float): Hop size in seconds (default 0.24s).
-#         sr (int): Sampling rate (default 16kHz).
-
-#     Returns:
-#         np.ndarray: VGGish embeddings (n_frames, 128) with higher temporal resolution.
-#     """
-#     # Load audio
-#     y, Fs = librosa.load(wav_file, mono=True)
-
-#     # Create overlapping windows manually
-#     frames = [
-#         y[i : i + DEFAULT_N_FFT]
-#         for i in range(0, len(y) - DEFAULT_N_FFT, DEFAULT_HOP_LENGTH)
-#     ]
-
-#     # Convert frames to VGGish examples
-#     vggish_examples = np.vstack(
-#         [vggish_input.waveform_to_examples(frame, Fs) for frame in frames]
-#     )
-
-#     # Run through VGGish model
-#     with tf.Graph().as_default(), tf.compat.v1.Session() as sess:
-#         vggish_slim.define_vggish_slim()
-#         vggish_slim.load_vggish_slim_checkpoint(sess, "vggish_model.ckpt")
-
-#         features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
-#         embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
-
-#         [embeddings] = sess.run(
-#             [embedding_tensor], feed_dict={features_tensor: vggish_examples}
-#         )
-
-#     return embeddings
-
-
 def extract_openl3_embeddings(wav_file: str, embedding_size=512):
     """
     Extracts OpenL3 embeddings with a customizable window size and hop size.
@@ -221,17 +167,22 @@ def extract_openl3_embeddings(wav_file: str, embedding_size=512):
     Returns:
         np.ndarray: OpenL3 embeddings (n_frames, embedding_size).
     """
-    # Load audio
-    y, Fs = librosa.load(wav_file, mono=True)
+    embeddings = load_embeddings(f"{wav_file}_openl3.joblib")
+    if embeddings is None:
+        audio_file_path = f"{wav_file}.wav"
+        # Load audio
+        y, Fs = librosa.load(audio_file_path, mono=True)
 
-    # Extract OpenL3 embeddings
-    embeddings, _ = openl3.get_audio_embedding(
-        y,
-        Fs,
-        content_type="music",
-        embedding_size=embedding_size,
-        hop_size=DEFAULT_HOP_LENGTH / Fs,
-    )
+        # Extract OpenL3 embeddings
+        embeddings, _ = openl3.get_audio_embedding(
+            y,
+            Fs,
+            content_type="music",
+            embedding_size=embedding_size,
+            hop_size=DEFAULT_HOP_LENGTH / Fs,
+            model=get_openl3_model(),
+        )
+        save_embeddings(embeddings, f"{wav_file}_openl3.joblib")
 
     return embeddings
 
@@ -240,12 +191,12 @@ def synchronize_features(
     chromagram: pd.DataFrame, embeddings: np.ndarray
 ) -> pd.DataFrame:
     """
-    Synchronizes chroma and VGGish embeddings by truncating to the shortest frame length
+    Synchronizes chroma and openl3 embeddings by truncating to the shortest frame length
     while preserving chromagram column names.
 
     Args:
         chromagram (pd.DataFrame): Chroma feature DataFrame (n_frames, 12).
-        embeddings (np.ndarray): VGGish embeddings (n_frames, 128).
+        embeddings (np.ndarray): openl3 embeddings (n_frames, 256).
 
     Returns:
         pd.DataFrame: DataFrame containing combined features with column names preserved.
@@ -258,7 +209,7 @@ def synchronize_features(
     embeddings_resized = embeddings[:min_frames]  # NumPy array
 
     # Convert embeddings into a DataFrame with column names
-    embedding_columns = [f"VGGish_{i}" for i in range(embeddings.shape[1])]
+    embedding_columns = [f"openL3_{i}" for i in range(embeddings.shape[1])]
     embeddings_df = pd.DataFrame(embeddings_resized, columns=embedding_columns)
 
     # Concatenate chroma DataFrame with embeddings DataFrame

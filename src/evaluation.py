@@ -58,7 +58,6 @@ def evaluate_all_songs(results: dict) -> dict:
     overall_precision = precision_score(all_y_true, all_y_pred, average="weighted")
     overall_recall = recall_score(all_y_true, all_y_pred, average="weighted")
 
-
     # Store overall metrics
     song_metrics["overall"] = {
         "accuracy": overall_accuracy,
@@ -72,8 +71,6 @@ def evaluate_all_songs(results: dict) -> dict:
     print(f"🎶 Overall F1-score = {overall_f1:.4f}")
     print(f"🎶 Overall Precision = {overall_precision:.4f}")
     print(f"🎶 Overall Recall = {overall_recall:.4f}\n")
-
-    # print(f"🎶 Average difference of chord prediction counts = {avg_differente_of_chord_prediction_counts(results):.4f}\n")
 
     return song_metrics
 

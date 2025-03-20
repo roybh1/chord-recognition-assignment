@@ -46,6 +46,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.npz
 
 # Unit test / coverage reports
 htmlcov/
