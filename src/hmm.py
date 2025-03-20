@@ -5,7 +5,8 @@ from scipy.linalg import LinAlgError
 from hmmlearn import hmm
 import os
 from src.consts import FULL_CHORDS, DATA_DIR
-
+from pomegranate.hmm import DenseHMM
+from pomegranate.distributions import Normal
 
 def compute_transition_matrix(chord_transitions: pd.DataFrame) -> pd.DataFrame:
     """
@@ -326,3 +327,42 @@ def extract_mean_and_covariance(
 
 def get_hmm_predictions(chord_ix_predictions, ix_2_chord):
     return np.array([ix_2_chord[chord_ix] for chord_ix in chord_ix_predictions])
+
+
+def build_pomegranate_hmm(transition_matrix, initial_state_probabilities, means, covariances):
+    model = DenseHMM(n_states=transition_matrix.shape[0], n_components=1)
+    for i in range(transition_matrix.shape[0]):
+        model.add_distribution(Normal(means[i], covariances[i]))
+        model.add_edge(model.start, i, initial_state_probabilities[i])
+        for j in range(transition_matrix.shape[1]):
+            model.add_edge(i, j, transition_matrix[i, j])
+    model.add_edge(model.end, model.start, 1.0)
+    return model
+
+
+
+
+# from pomegranate import HiddenMarkovModel, MultivariateGaussianDistribution, State
+
+# # Initialize model
+# hmm_model = HiddenMarkovModel("Chord Recognition HMM")
+
+# # Define states (chords) with Gaussian distributions
+# states = []
+# for i in range(len(initial_state_probs)):
+#     emission_distribution = MultivariateGaussianDistribution(means[i], covars[i])
+#     state = State(emission_distribution, name=f"State_{i}")
+#     states.append(state)
+#     hmm_model.add_state(state)
+
+# # Set initial state probabilities
+# for i, prob in enumerate(initial_state_probs):
+#     hmm_model.add_transition(hmm_model.start, states[i], prob)
+
+# # Set transition probabilities
+# for i in range(len(states)):
+#     for j in range(len(states)):
+#         hmm_model.add_transition(states[i], states[j], transition_matrix[i, j])
+
+# # Finalize model
+# hmm_model.bake()

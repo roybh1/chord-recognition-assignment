@@ -24,21 +24,23 @@ Your Institution\\
 \begin{abstract}
 Automatic chord recognition is a significant task within Music Information Retrieval (MIR).
 Hidden Markov Models (HMMs) using beat-synchronous chroma features have proven effective for chord estimation.
-This report explores the use of Hidden Markov Models (HMM) and investigates pre-trained audio embeddings, such as L3-Net, to enhance acoustic modeling for chord recognition.
+This report explores the use of Hidden Markov Models (HMM) and investigates pre-trained audio embeddings,
+such as L3-Net, to enhance acoustic modeling for chord recognition.
 \end{abstract}
 
 \section{Introduction}
 Automatic chord recognition aims to identify and segment chords within audio recordings automatically.
 Since 2008, it has been a task in the Music Information Retrieval Evaluation eXchange (MIREX), achieving notable success.
 Hidden Markov Models (HMM) coupled with chroma vectors have established themselves as effective methods.
-This work evaluates extensions to classical HMM methods by integrating neural network-based acoustic models and leveraging pre-trained embeddings model.
+This work evaluates extensions to classical HMM methods by integrating neural network-based acoustic models and leveraging
+pre-trained embeddings model.
 
 \section{Related Works}
-Previous studies have shown HMMs combined with Expectation-Maximization (EM) as robust techniques for chord recognition. Notably, studies like \textit{Chord Segmentation and Recognition using EM-Trained HMM} have highlighted the efficacy of such models. Recent advancements leverage deep neural networks and deep embeddings, such as Deep Belief Networks (DBNs), OpenL3 embeddings, and VGGish features, significantly improving acoustic modeling quality.
+Previous studies have shown HMMs combined with Expectation-Maximization (EM) as robust techniques for chord recognition.
+Notably, studies like \textit{Chord Segmentation and Recognition using EM-Trained HMM} have highlighted the efficacy of such models. Recent advancements leverage deep neural networks and deep embeddings, such as Deep Belief Networks (DBNs), OpenL3 embeddings, and VGGish features, significantly improving acoustic modeling quality.
 
 \section{Architecture}
-% TODO: talk about the OpenL3 features and the architecture of HMM
-Our proposed architecture leverages an NN/HMM hybrid approach:
+Our proposed architecture leverages an HMM approach:
 \begin{enumerate}
     \item \textbf{Chroma Extraction:} Extract beat-synchronous chroma vectors using Short-Time Fourier Transform (STFT).
     \item \textbf{OpenL3 Embedding:} Extract OpenL3 embeddings using L3-Net model
@@ -91,7 +93,9 @@ In our experiments, we investigated the impact of removing percussive sounds fro
 \begin{lstlisting}[language=Python]
 y_harmonic, y_percussive = librosa.effects.hpss(y, sr=sr)
 \end{lstlisting}
-where $y$ represents the original audio signal and $sr$ is the sampling rate. After separation, we utilized only the harmonic component to extract chroma features and subsequently train our model. Experimental results demonstrated a slight improvement in chord recognition accuracy using this preprocessing step.
+where $y$ represents the original audio signal and $sr$ is the sampling rate. After separation,
+we utilized only the harmonic component to extract chroma features and subsequently train our model.
+Experimental results demonstrated a slight improvement in chord recognition accuracy using this preprocessing step.
 
 \subsection{Inference improvement}
 % TODO: talk about the polling
@@ -158,13 +162,9 @@ same album were kept in the same split to avoid data leakage.
 Our findings demonstrate the effectiveness of integrating neural network acoustic modeling and pre-trained embeddings with traditional HMMs for chord recognition tasks. Further experimentation and hyperparameter tuning may yield additional improvements.
 
 \section*{Code and Media}
-The code for this project is available at: \url{https://github.com/caiomiyashiro/music_and_science/tree/master/Chord\%20Recognition}
+The code for this project is available at: \url{https://github.com/roybh1/chord-recognition-assignment}
 
 Media and additional results can be accessed here: \url{https://drive.google.com/drive/folders/1YmfEPtX_QLlpo0sR0kQwFV4-Lz6Sd01W}
-
-\bibliographystyle{plain}
-\bibliography{references}
-
 
 \end{document}
 

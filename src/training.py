@@ -17,6 +17,7 @@ from src.hmm import (
     build_gaussian_hmm,
     extract_mean_and_covariance,
     get_hmm_predictions,
+    build_pomegranate_hmm,
 )
 
 DEST_FOLDER = "lab_and_audio_files"
@@ -93,7 +94,7 @@ def run_training_pipeline(
     ix_2_chord = {ix_: chord_str for ix_, chord_str in zip(chord_numbers, chords)}
 
     return (
-        build_gaussian_hmm(
+        build_pomegranate_hmm(
             initial_state_probs, transition_matrix, mu_array, states_cov_matrices
         ),
         ix_2_chord,
