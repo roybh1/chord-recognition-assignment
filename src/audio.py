@@ -10,6 +10,8 @@ from src.consts import (
     DEFAULT_NORM,
     DEFAULT_TUNING,
     COL_NAMES_NOTES,
+    DEST_FOLDER,
+    AUDIO_SUFFIX,
 )
 
 # Global cache for the OpenL3 model
@@ -25,11 +27,9 @@ def get_openl3_model():
     """
     global MODEL_OPENL3
     if MODEL_OPENL3 is None:
-        print("🔄 Loading OpenL3 model...")
         MODEL_OPENL3 = openl3.models.load_audio_embedding_model(
             content_type="music", input_repr="mel256", embedding_size=512
         )
-        print("✅ OpenL3 model loaded and cached!")
     return MODEL_OPENL3
 
 
@@ -38,7 +38,7 @@ get_openl3_model()
 
 def get_chromagram_from_file(
     filename: str, remove_percussive: bool = False
-) -> tuple[np.ndarray, float, np.ndarray]:
+) -> tuple[np.ndarray, float]:
     """
     Extracts chromagram features from an audio file.
 
@@ -49,9 +49,6 @@ def get_chromagram_from_file(
         tuple[np.ndarray, float]: Chromagram and frames per second.
     """
     x, Fs = librosa.load(filename)
-
-    _, beat_frames = librosa.beat.beat_track(y=x, sr=Fs)
-    beat_times = librosa.frames_to_time(beat_frames, sr=Fs)
 
     if remove_percussive:
         x, _ = librosa.effects.hpss(x)
@@ -68,14 +65,12 @@ def get_chromagram_from_file(
     # Compute frames per second (ensuring it's in seconds, NOT milliseconds)
     frames_per_sec = chromagram.shape[1] / (len(x) / Fs)
 
-    return chromagram, frames_per_sec, beat_times
+    return chromagram, frames_per_sec
 
 
 def convert_chromagram_to_dataframe(
     chromagram: np.ndarray,
     frames_per_sec: float,
-    beat_times: np.ndarray,
-    pool_to_beats: bool = False,
 ) -> pd.DataFrame:
     """
     Converts chromagram data into a DataFrame with time-aligned frames.
@@ -98,59 +93,57 @@ def convert_chromagram_to_dataframe(
     chromagram_df["start"] = chromagram_df.index * frame_duration_sec
     chromagram_df["end"] = chromagram_df["start"] + frame_duration_sec
 
-    # Initialize predicted column (it should already exist after HMM predictions)
-    if "predicted" not in chromagram_df:
-        chromagram_df["predicted"] = None  # Placeholder for later predictions
-
-    if pool_to_beats:
-        # Backup original predictions
-        chromagram_df["predicted_original"] = chromagram_df["predicted"].copy()
-
-        # Assign each frame to the closest beat
-        chromagram_df["beat_cluster"] = np.digitize(chromagram_df["start"], beat_times)
-
-        # Aggregate chroma features within each beat cluster
-        beat_pooled_chromagram = (
-            chromagram_df.groupby("beat_cluster")[COL_NAMES_NOTES].mean().reset_index()
-        )
-
-        # Override 'predicted' column with the most common prediction per beat
-        mode_cluster = chromagram_df.groupby("beat_cluster")["predicted"].agg(
-            lambda x: x.value_counts().index[0]
-        )
-        chromagram_df["predicted"] = mode_cluster.loc[
-            chromagram_df["beat_cluster"]
-        ].values
-
-        # Replace start & end times with beat-aligned ones
-        beat_pooled_chromagram["start"] = beat_times[
-            beat_pooled_chromagram["beat_cluster"] - 1
-        ]
-        beat_pooled_chromagram["end"] = np.append(
-            beat_pooled_chromagram["start"][1:].values, chromagram_df["end"].iloc[-1]
-        )
-
-        return chromagram_df
-
     return chromagram_df
 
 
-def detect_beats(audio_path: str, sr=16000):
+def detect_beats(song_name: str):
     """
     Detects beat times in an audio file.
 
     Args:
-        audio_path (str): Path to the audio file.
+        song_name (str): Name of the song file.
         sr (int): Sample rate.
 
     Returns:
         np.ndarray: Beat times in seconds.
     """
-    y, sr = librosa.load(audio_path, sr=sr)
-    _, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-    beat_times = librosa.frames_to_time(beat_frames, sr=sr)
+    song_path = f"{DEST_FOLDER}/{song_name}{AUDIO_SUFFIX}"
+    y, Fs = librosa.load(song_path)
+    _, beat_frames = librosa.beat.beat_track(y=y, sr=Fs)
+    beat_times = librosa.frames_to_time(beat_frames, sr=Fs)
 
     return beat_times
+
+
+def pool_features_to_beats(
+    chromagram: pd.DataFrame, beat_times: np.ndarray
+) -> pd.DataFrame:
+    # Backup original predictions
+    chromagram["predicted_original"] = chromagram["predicted"].copy()
+
+    # Assign each frame to the closest beat
+    chromagram["beat_cluster"] = np.digitize(chromagram["start"], beat_times)
+
+    # Aggregate chroma features within each beat cluster
+    beat_pooled_chromagram = (
+        chromagram.groupby("beat_cluster")[COL_NAMES_NOTES].mean().reset_index()
+    )
+
+    # Override 'predicted' column with the most common prediction per beat
+    mode_cluster = chromagram.groupby("beat_cluster")["predicted"].agg(
+        lambda x: x.value_counts().index[0]
+    )
+    chromagram["predicted"] = mode_cluster.loc[chromagram["beat_cluster"]].values
+
+    # Replace start & end times with beat-aligned ones
+    beat_pooled_chromagram["start"] = beat_times[
+        beat_pooled_chromagram["beat_cluster"] - 1
+    ]
+    beat_pooled_chromagram["end"] = np.append(
+        beat_pooled_chromagram["start"][1:].values, chromagram["end"].iloc[-1]
+    )
+
+    return chromagram
 
 
 def extract_openl3_embeddings(wav_file: str, embedding_size=512):
@@ -169,7 +162,7 @@ def extract_openl3_embeddings(wav_file: str, embedding_size=512):
     """
     embeddings = load_embeddings(f"{wav_file}_openl3.joblib")
     if embeddings is None:
-        audio_file_path = f"{wav_file}.wav"
+        audio_file_path = f"{wav_file}.mp3"
         # Load audio
         y, Fs = librosa.load(audio_file_path, mono=True)
 

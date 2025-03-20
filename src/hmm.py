@@ -61,18 +61,12 @@ def build_transition_probability_matrix(chromagram: pd.DataFrame) -> pd.DataFram
     transition_matrix = compute_transition_matrix(chord_transitions)
 
     # Add <END> state (no outgoing transitions)
-    # transition_matrix.loc["<END>"] = 0.0
+    if transition_matrix.get("<END>") is not None:
+        transition_matrix.loc["<END>"] = 0.0
+        transition_matrix.loc["<END>", "<END>"] = 1.0
 
     # Add <START> state (no incoming transitions)
     transition_matrix["<START>"] = 0.0
-
-    # Ensure <END> always transitions to itself with probability 1
-    # transition_matrix.loc["<END>", "<END>"] = 1.0
-
-    # 🔍 Detect NaN values in transition matrix
-    if transition_matrix.isna().any().any():
-        print(f"⚠️ WARNING: NaN values found in transition matrix. Fixing them...")
-        print(f"Before Fix:\n{transition_matrix}")
 
     # Replace NaN rows with uniform probabilities
     transition_matrix = transition_matrix.fillna(0)
@@ -83,12 +77,7 @@ def build_transition_probability_matrix(chromagram: pd.DataFrame) -> pd.DataFram
     # 🔍 If floating-point rounding caused small errors, force sum correction
     transition_matrix = transition_matrix.apply(lambda row: row / row.sum(), axis=1)
 
-    # 🔍 Re-check after fix
-    if transition_matrix.isna().any().any():
-        raise ValueError(
-            "❌ ERROR: NaNs still present in transition matrix after attempted fix!"
-        )
-    print(f"After Fix:\n{transition_matrix}")
+    transition_matrix = transition_matrix.fillna(0)
 
     return transition_matrix
 

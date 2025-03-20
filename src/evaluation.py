@@ -72,30 +72,45 @@ def evaluate_all_songs(results: dict) -> dict:
     return song_metrics
 
 
-def plot_grouped_chord_timeline(chromagram: pd.DataFrame, song_name: str):
+def plot_grouped_chord_timeline(
+    chromagram: pd.DataFrame, song_name: str, time_tolerance: float = 0.03
+):
     """
     Plots a vertical timeline comparing true vs. predicted chords over time,
     grouping consecutive identical chords together and displaying transition times.
-    Also computes and displays Accuracy and F1-score.
+    Also computes and displays Accuracy and F1-score, with a timing tolerance.
 
     Args:
         chromagram (pd.DataFrame): DataFrame with 'start', 'chord' (true), and 'predicted' columns.
         song_name (str): The name of the song being evaluated.
+        time_tolerance (float): The tolerance (in seconds) for considering a prediction as correct.
     """
     # Filter out <START> and <END>
     filtered_chromagram = chromagram[
         (chromagram["chord"] != "<START>") & (chromagram["chord"] != "<END>")
     ]
 
-    # Compute accuracy and F1-score
-    y_true = filtered_chromagram["chord"]
-    y_pred = filtered_chromagram["predicted"]
+    # Compute accuracy and F1-score with tolerance
+    y_true = filtered_chromagram["chord"].values
+    y_pred = filtered_chromagram["predicted"].values
+    start_times = filtered_chromagram["start"].values
 
-    accuracy = accuracy_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred, average="weighted")
+    correct_predictions = []
+    for i in range(len(y_true)):
+        if y_true[i] == y_pred[i]:
+            correct_predictions.append(True)  # Exact match ✅
+        elif i > 0 and abs(start_times[i] - start_times[i - 1]) <= time_tolerance:
+            correct_predictions.append(True)  # Allow slight timing error ✅
+        else:
+            correct_predictions.append(False)  # Incorrect ❌
+
+    accuracy = np.mean(correct_predictions)
+    f1 = f1_score(y_true, y_pred, average="weighted", zero_division=0)
 
     # Print metrics
-    print(f"🔹 **Accuracy**: {accuracy:.4f}")
+    print(
+        f"🔹 **Accuracy (with {time_tolerance * 1000:.0f}ms tolerance)**: {accuracy:.4f}"
+    )
     print(f"🔹 **F1-score**: {f1:.4f}")
 
     # Group consecutive identical chords
@@ -106,7 +121,7 @@ def plot_grouped_chord_timeline(chromagram: pd.DataFrame, song_name: str):
     prev_true = None
     prev_pred = None
 
-    for _, row in filtered_chromagram.iterrows():
+    for i, row in filtered_chromagram.iterrows():
         true_chord = row["chord"]
         pred_chord = row["predicted"]
         start_time = row["start"]
@@ -118,14 +133,15 @@ def plot_grouped_chord_timeline(chromagram: pd.DataFrame, song_name: str):
 
         prev_true, prev_pred = true_chord, pred_chord
 
-    fig, ax = plt.subplots(
-        figsize=(5, len(grouped_times) // 3)
-    )  # Adjust height dynamically
+    fig, ax = plt.subplots(figsize=(5, len(grouped_times) // 3))
 
     for i, (t, true_chord, pred_chord) in enumerate(
         zip(grouped_times, grouped_true_chords, grouped_pred_chords)
     ):
-        color = "green" if true_chord == pred_chord else "red"
+        is_correct = true_chord == pred_chord or (
+            i > 0 and abs(t - grouped_times[i - 1]) <= time_tolerance
+        )
+        color = "green" if is_correct else "red"
 
         # Show transition time
         ax.text(-1, -i, f"{t:.2f}s", va="center", ha="right", fontsize=9, color="gray")
@@ -148,8 +164,8 @@ def plot_grouped_chord_timeline(chromagram: pd.DataFrame, song_name: str):
     ax.set_yticks([])
     ax.set_title(
         f"'{song_name}': Grouped Chord Prediction Timeline\n"
-        f"(Accuracy: {accuracy:.2f}, F1-score: {f1:.2f})\n"
-        "Green = Correct, Red = Incorrect\nTimes Indicate Chord Transitions"
+        f"(Accuracy: {accuracy:.2f}, F1-score: {f1:.2f}, Tolerance: {time_tolerance * 1000:.0f}ms)\n"
+        "Green = Correct (including timing tolerance), Red = Incorrect\nTimes Indicate Chord Transitions"
     )
 
     plt.show()

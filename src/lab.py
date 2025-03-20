@@ -24,6 +24,8 @@ def read_chord_file(music_file_path: str) -> pd.DataFrame:
     Read a chord file and return a dataframe with the start and end time of each chord and the chord itself.
     """
     chords_annotation = pd.read_csv(music_file_path, sep=" ", header=None)
+    if chords_annotation.shape[1] != 3:
+        chords_annotation = pd.read_csv(music_file_path, sep="\t", header=None)
     chords_annotation.columns = ["start", "end", "chord"]
     chords_annotation["chord"] = _simplify_chords(chords_annotation)
     # replace silence by probable tonal end
